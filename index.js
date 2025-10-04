@@ -53,14 +53,10 @@ function authenticateRequest(req, res, next) {
 /* Routers and routes */
 const registerRouter = require('./models/register');
 const { usersRouter, profileRouter } = require('./models/users');
-const accountsRoutes = require('./models/accountsRoutes');
-const transactionRoutes = require('./routes/transactionRoutes');
 
 app.use('/register', registerRouter);
 app.use('/users', authenticateRequest, usersRouter);       // protegiendo mount
 app.use('/userProfile', authenticateRequest, profileRouter);
-app.use('/accounts', authenticateRequest, accountsRoutes);
-app.use('/transactions', authenticateRequest, transactionRoutes);
 
 /* Root */
 app.get('/', (req, res) => res.json({ message: 'API OAuth2 ready' }));

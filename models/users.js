@@ -6,7 +6,6 @@ const authorizeScopes = require('../middlewares/authorizeScopes');
 
 const registerRouter = require('./register');
 const users = registerRouter.users;
-const accounts = require('./accountsStore');
 
 const usersRouter = express.Router();
 const profileRouter = express.Router();

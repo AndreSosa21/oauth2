@@ -73,6 +73,17 @@ module.exports = {
     };
   },
 
+  getUserFromClient(client) {
+  // Aquí puedes devolver un objeto ficticio o el mismo client como "usuario"
+  return {
+    id: client.id,
+    username: client.clientId,
+    role: 'service',
+    scopes: client.scopes
+  };
+},
+
+
   saveToken(token, client, user) {
     const tokenData = {
       accessToken: token.accessToken,
