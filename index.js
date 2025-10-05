@@ -4,6 +4,7 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const OAuth2Server = require('oauth2-server');
 const Request = OAuth2Server.Request;
@@ -17,12 +18,15 @@ app.use(express.urlencoded({ extended: false }));
 // Servir frontend estático (public/)
 app.use(express.static('public'));
 
+/* Lifetimes (mantener sincronizado con frontend) */
+const ACCESS_LIFETIME = 60;   // segundos (1 minuto)
+const REFRESH_LIFETIME = 120; // segundos (2 minutos)
+
 /* Configure OAuth server */
-/* Ajusté los lifetimes según lo pedido: access = 60s, refresh = 120s */
 app.oauth = new OAuth2Server({
   model: oauthModel,
-  accessTokenLifetime: 60,         // 60 segundos = 1 minuto
-  refreshTokenLifetime: 120,       // 120 segundos = 2 minutos
+  accessTokenLifetime: ACCESS_LIFETIME,
+  refreshTokenLifetime: REFRESH_LIFETIME,
   allowBearerTokensInQueryString: true
 });
 
@@ -90,6 +94,56 @@ app.get('/serviceInfo', (req, res) => {
   return res.json({ service: 'demo', status: 'ok', client: t.client.clientId || t.client.id });
 });
 
+/* --- DEV-only route: emitir client_credentials token desde el servidor ---
+   NOTA: Esta ruta es para facilitar pruebas locales. NO la uses en producción.
+   Devuelve un access_token con scope del cliente 'application'.
+*/
+app.get('/demo/service-token', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ message: 'Not allowed in production' });
+  }
+
+  try {
+    // Obtener cliente "application" del modelo
+    const client = oauthModel.getClient('application');
+    if (!client) return res.status(500).json({ message: 'Service client not found in model' });
+
+    // Construimos un "user" asociado al client (como lo hace getUserFromClient)
+    const user = oauthModel.getUserFromClient(client);
+
+    // Generar access token aleatorio
+    const accessToken = crypto.randomBytes(40).toString('hex');
+    const accessTokenExpiresAt = new Date(Date.now() + (ACCESS_LIFETIME * 1000));
+
+    // token object (similar a lo que maneja oauth2-server)
+    const token = {
+      accessToken,
+      accessTokenExpiresAt,
+      scope: client.scopes || ''
+    };
+
+    // Guardar token usando la función del modelo
+    const saved = oauthModel.saveToken(token, {
+      id: client.id,
+      clientId: client.clientId,
+      clientSecret: client.clientSecret,
+      grants: client.grants,
+      scopes: client.scopes
+    }, user);
+
+    // Responder en formato OAuth2
+    return res.json({
+      access_token: saved.accessToken,
+      token_type: 'Bearer',
+      expires_in: Math.floor((saved.accessTokenExpiresAt - new Date()) / 1000),
+      scope: saved.scope || ''
+    });
+  } catch (err) {
+    console.error('Error generating demo service token:', err);
+    return res.status(500).json({ message: 'Error generating token' });
+  }
+});
+
 /* --- HTTPS server setup --- */
 const CERT_DIR = path.join(__dirname, 'certs');
 const keyPath = path.join(CERT_DIR, 'key.pem');
@@ -116,7 +170,6 @@ httpsServer.listen(HTTPS_PORT, () => console.log(`HTTPS Server listening on port
 // Optionally redirect HTTP -> HTTPS (useful para development local)
 const httpApp = express();
 httpApp.use((req, res) => {
-  // redirigir a https (mismo host) - conveniente si pruebas en navegador
   const host = req.headers.host ? req.headers.host.split(':')[0] : 'localhost';
   return res.redirect(`https://${host}:${HTTPS_PORT}${req.url}`);
 });
