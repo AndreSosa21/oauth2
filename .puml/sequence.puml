@@ -1,0 +1,51 @@
+@startuml sequence_improved
+' ---------------------------
+' OAuth2 Demo — Sequence Diagram (mejorado y numerado)
+' ---------------------------
+title Secuencia: Password grant → llamada protegida → refresh automático
+
+actor "User (Human)" as User
+participant "Browser / Frontend\n(public/auth-frontend.html)" as Frontend
+participant "HTTPS Server\n(index.js) / Routes" as Server
+participant "OAuth Model\n(models/oauthModel.js)" as OAuthModel
+participant "Protected Resource\n(/userProfile)" as Resource
+
+== 1) Login: Obtener access_token + refresh_token ==
+User -> Frontend : 1. Click "Login" (user, pass, client_id, client_secret)
+Frontend -> Server : 2. POST /oauth/token (grant_type=password, user, pass, client_id, client_secret)
+Server -> OAuthModel : 3. validate client & user -> create tokens (saveToken)
+OAuthModel -> Server : 4. return token object { accessToken, refreshToken, expires_in, scope }
+Server -> Frontend : 5. 200 OK { access_token, refresh_token, expires_in, scope }
+Frontend -> Frontend : 6. store tokens (localStorage); start countdown timers
+
+== 2) Llamada CON access_token válido (camino feliz) ==
+Frontend -> Server : 7. GET /userProfile (Authorization: Bearer access_token)
+Server -> OAuthModel : 8. getAccessToken(access_token)
+OAuthModel -> Server : 9. token found & not expired -> return token
+Server -> Resource : 10. fetch profile data
+Resource -> Server : 11. user profile
+Server -> Frontend : 12. 200 OK { user }
+
+== 3) Llamada CON access_token EXPIRADO → refresh automático ==
+Frontend -> Server : 13. GET /userProfile (Authorization: Bearer access_token_expired)
+Server -> OAuthModel : 14. getAccessToken(access_token_expired)
+OAuthModel -> Server : 15. token expired -> Server returns 401 to Frontend
+Server -> Frontend : 16. 401 Unauthorized
+Frontend -> Frontend : 17. detect 401 -> attempt refresh using saved refresh_token
+Frontend -> Server : 18. POST /oauth/token (grant_type=refresh_token, refresh_token, client_id, client_secret)
+Server -> OAuthModel : 19. getRefreshToken(refresh_token) and (optionally) revoke old -> saveToken(new)
+OAuthModel -> Server : 20. return new tokens { accessToken, refreshToken?, expires_in }
+Server -> Frontend : 21. 200 OK { access_token(new), refresh_token?, expires_in }
+Frontend -> Frontend : 22. store new tokens; update timers
+Frontend -> Server : 23. RETRY GET /userProfile (Authorization: Bearer access_token(new))
+Server -> OAuthModel : 24. validate new token -> OK
+Server -> Resource : 25. return user profile
+Server -> Frontend : 26. 200 OK { user }
+
+note over Frontend,Server
+  Comportamiento importante:
+  - Frontend reintenta sólo una vez después de refresh.
+  - Si refresh falla (refresh expired), el frontend exige login.
+end note
+
+@enduml

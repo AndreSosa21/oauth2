@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>OAuth2 Demo — Frontend</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ==========================
+       Variables & Reset
+       ========================== */
+    :root{
+      --bg: #0f1724;
+      --card: #0b1220;
+      --muted: #9aa4b2;
+      --accent: #7c3aed;
+      --accent-2: #06b6d4;
+      --glass: rgba(255,255,255,0.03);
+      --success: #10b981;
+      --danger: #ef4444;
+      --max-width: 1100px;
+      --right-width: 380px;
+      --gutter: 18px;
+    }
+    * { box-sizing: border-box; }
+    html,body { height: 100%; margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:
+      radial-gradient(1200px 600px at 10% 10%, rgba(124,58,237,0.09), transparent 8%),
+      linear-gradient(180deg, #071025 0%, var(--bg) 100%);
+      color: #e6eef6; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* ==========================
+       Layout
+       ========================== */
+    .page {
+      padding: 24px;
+      min-height: 100vh;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    .container {
+      width: 100%;
+      max-width: var(--max-width);
+      display: grid;
+      grid-template-columns: 1fr var(--right-width);
+      gap: var(--gutter);
+      align-items: start;
+      /* Keep entire app in view; logs scroll internally */
+      min-height: calc(100vh - 48px);
+    }
+
+    /* Left column stacks header + content; allows internal scrolling if needed */
+    .left {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0; /* important for flex child overflow behavior */
+    }
+
+    /* Right panel fixed width column */
+    .right-panel {
+      display:flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    /* ==========================
+       Card / UI elements
+       ========================== */
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 24px rgba(2,6,23,0.6);
+      border: 1px solid rgba(255,255,255,0.02);
+      min-width: 0;
+    }
+
+    header.card {
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+
+    .logo {
+      width:44px; height:44px; border-radius:10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display:flex; align-items:center; justify-content:center; font-weight:700; color:white;
+      font-size:14px;
+    }
+
+    h1 { margin:0; font-size:18px; font-weight:700; }
+    p.lead { margin:0; color:var(--muted); font-size:13px; }
+
+    .form-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .field { flex:1; min-width:0; }
+    .field-label { font-size:12px; color:var(--muted); margin-bottom:6px; }
+
+    input, select, button {
+      background: var(--glass);
+      border: 1px solid rgba(255,255,255,0.03);
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: #e6eef6;
+      font-size: 14px;
+      outline: none;
+    }
+    input::placeholder { color: rgba(230,238,246,0.45); }
+
+    button.primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); border: none; padding:10px 14px; cursor:pointer; }
+    button.ghost { background: transparent; border:1px solid rgba(255,255,255,0.04); cursor:pointer; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; }
+
+    .small-muted { font-size:12px; color:var(--muted); }
+    .badge { display:inline-block; background: rgba(255,255,255,0.04); padding:6px 10px; border-radius:999px; font-size:13px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    /* ==========================
+       Logs area (fixed behavior)
+       ========================== */
+    /* container for logs + other left items; make logs not push layout */
+    .left-main { display:flex; flex-direction:column; gap:14px; }
+    .log-container { display:flex; flex-direction:column; gap:8px; height: 300px; }
+
+    /* the actual scrolling box for logs */
+    #out {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      padding:12px;
+      border-radius:10px;
+      color:#dff;
+      font-size:13px;
+      line-height:1.4;
+      /* IMPORTANT: fixed max height so it does not expand the page */
+      max-height: 380px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* ensure long single-words don't break layout */
+    .card pre, #out { word-break: break-word; white-space: pre-wrap; }
+
+    /* ==========================
+       Tokens / countdowns
+       ========================== */
+    .tokens { display:flex; flex-direction:column; gap:10px; }
+    .token-row { display:flex; gap:8px; align-items:center; }
+    .countdown { font-weight:600; color:var(--muted); font-size:13px; margin-top:6px; }
+    .countdown.up { color: #9ae6b4; }
+    .countdown.expired { color: var(--danger); }
+
+    /* ==========================
+       Small helpers / responsive
+       ========================== */
+    .meta { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .flex { display:flex; gap:8px; align-items:center; }
+    .copy-btn { background: rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.02); padding:6px 8px; border-radius:8px; cursor:pointer; font-size:13px; }
+
+    @media (max-width:980px) {
+      .container { grid-template-columns: 1fr; }
+      .right-panel { order: 2; }
+      .left { order: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="container" role="main">
+      <div class="left">
+        <header class="card">
+          <div class="logo">O2</div>
+          <div>
+            <h1>OAuth2 Demo — Frontend</h1>
+            <p class="lead">Pruebas locales con access + refresh token y client_credentials (demo).</p>
+          </div>
+        </header>
+
+        <div class="left-main">
+          <!-- Login -->
+          <section class="card">
+            <div class="meta">
+              <strong>1. Login (password grant)</strong>
+              <span class="small-muted">No usar secrets en producción</span>
+            </div>
+
+            <div style="height:8px"></div>
+
+            <div class="form-row">
+              <div class="field">
+                <div class="field-label">Username</div>
+                <input id="username" value="admin" />
+              </div>
+              <div class="field">
+                <div class="field-label">Password</div>
+                <input id="password" type="password" value="1234" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <div class="field-label">Client ID</div>
+                <input id="client_id" value="webapp" />
+              </div>
+              <div class="field">
+                <div class="field-label">Client secret</div>
+                <input id="client_secret" value="websecret" />
+              </div>
+            </div>
+
+            <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+              <button id="btnLogin" class="primary">Iniciar sesión</button>
+              <button id="btnLogout" class="ghost">Cerrar sesión</button>
+              <div class="small-muted" id="loginMsg"></div>
+            </div>
+          </section>
+
+          <!-- Actions -->
+          <section class="card">
+            <strong>2. Acciones protegidas</strong>
+            <div style="height:8px"></div>
+            <div class="controls">
+              <button id="btnProfile" class="ghost">Ver /userProfile</button>
+              <button id="btnUsers" class="ghost">Ver /users (admin)</button>
+              <button id="btnServiceToken" class="ghost">Generar token (client_credentials)</button>
+              <button id="btnServiceInfo" class="ghost">Llamar /serviceInfo</button>
+              <button id="btnClearConsole" class="ghost">Limpiar logs</button>
+            </div>
+            <div style="height:8px"></div>
+            <div class="small-muted">Auto-refresh: si el servidor devuelve 401, el frontend intentará refresh y reintentar.</div>
+          </section>
+
+          <!-- Logs -->
+          <section class="card log-container">
+            <strong>Logs / Output</strong>
+            <div style="height:8px"></div>
+            <pre id="out">Listo.</pre>
+          </section>
+        </div>
+      </div>
+
+      <!-- Right panel -->
+      <aside class="right-panel">
+        <div class="card">
+          <strong>Tokens</strong>
+          <div style="height:10px"></div>
+          <div class="tokens">
+            <div>
+              <div class="small-muted">Access token</div>
+              <div class="token-row" style="margin-top:6px;">
+                <div class="badge" id="accessShort">(vacío)</div>
+                <button class="copy-btn" id="copyAccess">Copiar</button>
+              </div>
+              <div id="accessCountdown" class="countdown"></div>
+            </div>
+
+            <div>
+              <div class="small-muted">Refresh token</div>
+              <div class="token-row" style="margin-top:6px;">
+                <div class="badge" id="refreshShort">(vacío)</div>
+                <button class="copy-btn" id="copyRefresh">Copiar</button>
+              </div>
+              <div id="refreshCountdown" class="countdown"></div>
+            </div>
+
+            <div>
+              <div class="small-muted">Service token (client_credentials)</div>
+              <div class="token-row" style="margin-top:6px;">
+                <div class="badge" id="serviceShort">(vacío)</div>
+                <button class="copy-btn" id="copyService">Copiar</button>
+              </div>
+              <div id="serviceCountdown" class="countdown"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <strong>Info rápida</strong>
+          <div style="height:8px"></div>
+          <div class="small-muted">API base</div>
+          <div style="margin-top:8px">
+            <div class="badge" id="apiBase"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    // keep in sync with server
+    const ACCESS_LIFETIME = 60;   // seconds
+    const REFRESH_LIFETIME = 120; // seconds
+    const API_BASE = location.origin; // https://localhost:3443
+
+    // DOM
+    const out = document.getElementById('out');
+    const accessShort = document.getElementById('accessShort');
+    const refreshShort = document.getElementById('refreshShort');
+    const serviceShort = document.getElementById('serviceShort');
+    const accessCountdown = document.getElementById('accessCountdown');
+    const refreshCountdown = document.getElementById('refreshCountdown');
+    const serviceCountdown = document.getElementById('serviceCountdown');
+    const loginMsg = document.getElementById('loginMsg');
+    const apiBaseBadge = document.getElementById('apiBase');
+    apiBaseBadge.textContent = API_BASE;
+
+    // helpers
+    function log(msg){
+      const time = new Date().toLocaleTimeString();
+      if (typeof msg === 'object') msg = JSON.stringify(msg, null, 2);
+      // append at top but keep within the log element: it has internal scroll
+      out.textContent = `[${time}] ${msg}\n\n` + out.textContent;
+      // keep scroll at top (latest on top). If you prefer auto-scroll to bottom, use:
+      // out.scrollTop = out.scrollHeight;
+    }
+
+    function formatTimeSeconds(s){
+      if (s <= 0) return '00:00';
+      const mm = Math.floor(s/60).toString().padStart(2,'0');
+      const ss = Math.floor(s%60).toString().padStart(2,'0');
+      return `${mm}:${ss}`;
+    }
+
+    function saveAuth(obj){
+      const now = Math.floor(Date.now()/1000);
+      obj.issued_at = obj.issued_at || now;
+      if (obj.expires_in) obj.expires_at = obj.issued_at + obj.expires_in;
+      if (obj.refresh_token) obj.refresh_expires_at = obj.issued_at + REFRESH_LIFETIME;
+      localStorage.setItem('auth', JSON.stringify(obj));
+      _updateUI();
+    }
+    function loadAuth(){ return JSON.parse(localStorage.getItem('auth') || '{}'); }
+    function clearAuth(){ localStorage.removeItem('auth'); _updateUI(); }
+    function saveServiceToken(t){
+      localStorage.setItem('service_token', t);
+      localStorage.setItem('service_token_issued_at', Math.floor(Date.now()/1000));
+      _updateUI();
+    }
+    function getServiceToken(){ return localStorage.getItem('service_token') || ''; }
+    function getServiceIssuedAt(){ return Number(localStorage.getItem('service_token_issued_at') || 0); }
+
+    function _updateUI(){
+      const a = loadAuth();
+      accessShort.textContent = a.access_token ? (a.access_token.slice(0,12) + '...') : '(vacío)';
+      refreshShort.textContent = a.refresh_token ? (a.refresh_token.slice(0,12) + '...') : '(vacío)';
+      serviceShort.textContent = getServiceToken() ? (getServiceToken().slice(0,12) + '...') : '(vacío)';
+
+      // access countdown
+      if (a.access_token && a.expires_at){
+        const left = a.expires_at - Math.floor(Date.now()/1000);
+        accessCountdown.textContent = left > 0 ? `Access: ${formatTimeSeconds(left)}` : 'Access: 00:00 (expirado)';
+        accessCountdown.className = 'countdown ' + (left > 0 ? 'up' : 'expired');
+      } else {
+        accessCountdown.textContent = 'Access: -';
+        accessCountdown.className = 'countdown';
+      }
+
+      // refresh countdown
+      if (a.refresh_token && a.refresh_expires_at){
+        const leftR = a.refresh_expires_at - Math.floor(Date.now()/1000);
+        refreshCountdown.textContent = leftR > 0 ? `Refresh: ${formatTimeSeconds(leftR)}` : 'Refresh: 00:00 (expirado)';
+        refreshCountdown.className = 'countdown ' + (leftR > 0 ? 'up' : 'expired');
+      } else {
+        refreshCountdown.textContent = 'Refresh: -';
+        refreshCountdown.className = 'countdown';
+      }
+
+      // service token age
+      const svcIssued = getServiceIssuedAt();
+      if (getServiceToken() && svcIssued){
+        const age = Math.floor(Date.now()/1000) - svcIssued;
+        serviceCountdown.textContent = `Emitido hace ${formatTimeSeconds(age)}`;
+      } else {
+        serviceCountdown.textContent = '';
+      }
+    }
+
+    // copy buttons
+    document.getElementById('copyAccess').addEventListener('click', () => {
+      const a = loadAuth().access_token || '';
+      navigator.clipboard.writeText(a).then(()=>log('Access token copiado al portapapeles'));
+    });
+    document.getElementById('copyRefresh').addEventListener('click', () => {
+      const r = loadAuth().refresh_token || '';
+      navigator.clipboard.writeText(r).then(()=>log('Refresh token copiado al portapapeles'));
+    });
+    document.getElementById('copyService').addEventListener('click', () => {
+      navigator.clipboard.writeText(getServiceToken()).then(()=>log('Service token copiado'));
+    });
+
+    // network helpers
+    async function tokenRequest(params){
+      const body = new URLSearchParams(params);
+      const res = await fetch(API_BASE + '/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      });
+      const json = await res.json();
+      if (!res.ok) throw { status: res.status, body: json };
+      json.issued_at = Math.floor(Date.now()/1000);
+      if (json.refresh_token && !json.refresh_expires_at) json.refresh_expires_at = json.issued_at + REFRESH_LIFETIME;
+      return json;
+    }
+
+    // actions
+    async function login(){
+      loginMsg.textContent = '';
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const client_id = document.getElementById('client_id').value;
+      const client_secret = document.getElementById('client_secret').value;
+      try{
+        const tok = await tokenRequest({ grant_type:'password', username, password, client_id, client_secret });
+        if (tok.expires_in) tok.expires_at = tok.issued_at + tok.expires_in;
+        saveAuth(tok);
+        loginMsg.textContent = 'Logueado';
+        log('Login OK: scope=' + tok.scope);
+      }catch(e){
+        console.error(e);
+        loginMsg.textContent = 'Error al loguear';
+        log('Login error: ' + JSON.stringify(e));
+      }
+    }
+
+    async function refreshToken(){
+      const auth = loadAuth();
+      if (!auth.refresh_token) throw 'No refresh token';
+      const client_id = document.getElementById('client_id').value;
+      const client_secret = document.getElementById('client_secret').value;
+      try {
+        const tok = await tokenRequest({ grant_type:'refresh_token', refresh_token: auth.refresh_token, client_id, client_secret });
+        if (tok.expires_in) tok.expires_at = tok.issued_at + tok.expires_in;
+        saveAuth(Object.assign({}, auth, tok));
+        log('Refresh OK');
+        return tok;
+      } catch (e) {
+        clearAuth();
+        log('Refresh failed: ' + JSON.stringify(e));
+        throw e;
+      }
+    }
+
+    async function clientCredentials(){
+      const DEFAULT_SERVICE_CLIENT_ID = 'application';
+      const DEFAULT_SERVICE_CLIENT_SECRET = 'secret';
+      try {
+        const tok = await tokenRequest({
+          grant_type: 'client_credentials',
+          client_id: DEFAULT_SERVICE_CLIENT_ID,
+          client_secret: DEFAULT_SERVICE_CLIENT_SECRET
+        });
+        saveServiceToken(tok.access_token);
+        log(`Service token OK (client=${DEFAULT_SERVICE_CLIENT_ID}) scope=${tok.scope}`);
+      } catch (e) {
+        log('Service token error: ' + JSON.stringify(e));
+      }
+    }
+
+    async function requestWithAuth(path, opts = {}, retry = true){
+      const auth = loadAuth();
+      opts.headers = opts.headers || {};
+      if (auth.access_token) opts.headers['Authorization'] = 'Bearer ' + auth.access_token;
+      const res = await fetch(API_BASE + path, opts);
+      if (res.status === 401 && retry) {
+        log('401 recibido, intentando refresh...');
+        try {
+          await refreshToken();
+          return requestWithAuth(path, opts, false);
+        } catch (e) {
+          throw { status: 401, message: 'Refresh falló', detail: e };
+        }
+      }
+      const text = await res.text();
+      let body = text;
+      try { body = JSON.parse(text); } catch (_) {}
+      if (!res.ok) throw { status: res.status, body };
+      return { status: res.status, body };
+    }
+
+    async function getProfile(){ try { const r = await requestWithAuth('/userProfile', { method: 'GET' }); log('Profile: ' + JSON.stringify(r.body)); } catch (e) { log('getProfile error: ' + JSON.stringify(e)); } }
+    async function getUsers(){ try { const r = await requestWithAuth('/users', { method: 'GET' }); log('Users: ' + JSON.stringify(r.body)); } catch (e) { log('getUsers error: ' + JSON.stringify(e)); } }
+    async function callServiceInfo(){
+      const token = getServiceToken();
+      if (!token) return log('No service token disponible. Genera uno.');
+      try {
+        const res = await fetch(API_BASE + '/serviceInfo', { method: 'GET', headers: { 'Authorization': 'Bearer ' + token } });
+        const json = await res.json();
+        log('serviceInfo: ' + JSON.stringify(json));
+      } catch (e) {
+        log('serviceInfo error: ' + JSON.stringify(e));
+      }
+    }
+
+    // UI bindings
+    document.getElementById('btnLogin').addEventListener('click', login);
+    document.getElementById('btnLogout').addEventListener('click', () => { clearAuth(); log('Logout'); });
+    document.getElementById('btnProfile').addEventListener('click', getProfile);
+    document.getElementById('btnUsers').addEventListener('click', getUsers);
+    document.getElementById('btnServiceToken').addEventListener('click', clientCredentials);
+    document.getElementById('btnServiceInfo').addEventListener('click', callServiceInfo);
+    document.getElementById('btnClearConsole').addEventListener('click', () => out.textContent = '');
+
+    // periodic UI update (countdowns)
+    setInterval(_updateUI, 1000);
+
+    // init
+    _updateUI();
+    log('Frontend listo. Origin=' + API_BASE);
+
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+@startuml components_improved
+' ---------------------------
+' OAuth2 Demo — Component Diagram (mejorado)
+' ---------------------------
+skinparam componentStyle rectangle
+skinparam linetype ortho
+title OAuth2 Demo — Component Diagram (capas claras)
+
+package "Client (Browser)" {
+  [Auth Frontend\n(public/auth-frontend.html)] as Frontend
+  note right of Frontend
+    UI para:
+    - Login (password grant)
+    - Mostrar contadores (access / refresh)
+    - Generar client_credentials token
+    - Llamadas protegidas con retry on refresh
+  end note
+}
+
+package "API Gateway / Web Server" {
+  [HTTPS Server\nindex.js] as Index
+  component "Static files\n(public/)" as Static
+  component "Routes\n/register, /oauth/token\n/users, /userProfile, /serviceInfo" as Routes
+  component "Middlewares\noauthAuthenticate\nauthorizeScopes\nauthorizeRoles" as Mws
+}
+
+package "Auth Engine (OAuth Model)" {
+  component "oauthModel.js\n(getClient, saveToken,\ngetAccessToken, getRefreshToken,\ngetUser, revokeToken)" as Model
+  database "In-Memory Store\n(tokens, clients, users)" as Store
+}
+
+package "Domain Models" {
+  [register.js] as Register
+  [users.js] as UsersRouter
+  [accounts.js] as Accounts
+}
+
+' Relationships (direction = request/usage)
+Frontend --> Index : HTTPS requests (API + static)
+Index --> Static : serve files
+Index --> Routes : dispatch requests
+Routes --> Mws : protect routes
+Mws --> Model : token validation (getAccessToken/getRefreshToken)
+Routes --> Model : token issuance (POST /oauth/token -> saveToken)
+Model --> Store : read/write tokens, clients, users
+Routes --> Register
+Routes --> UsersRouter
+UsersRouter --> Accounts : fetch account data for users
+
+' Clarifying notes
+note left of Index
+  - HTTPS + redirect HTTP->HTTPS
+  - Exposes /oauth/token endpoint
+  - Mounts routers (register, users, profile)
+end note
+
+note right of Model
+  - Centraliza la lógica OAuth2 requerida por oauth2-server
+  - Emula store en memoria (demo)
+end note
+
+@enduml

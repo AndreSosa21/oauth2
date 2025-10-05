@@ -1,4 +1,5 @@
 // models/users.js
+const accounts = []; // arreglo vacío temporal para evitar ReferenceError
 const express = require('express');
 const authenticateRequest = require('../middlewares/oauthAuthenticate');
 const authorizeRole = require('../middlewares/AuthorizationRoles');
