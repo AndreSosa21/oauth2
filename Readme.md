@@ -163,6 +163,9 @@ Los diagramas están escritos en **PlantUML**, por lo que puedes renderizarlos f
 Este diagrama muestra los principales módulos del sistema: el **Frontend**, el **Servidor HTTPS**, el **Modelo OAuth2**, los **Middlewares**, y los **Módulos de negocio**.  
 Permite entender cómo cada capa interactúa con las demás.
 
+<img width="1064" height="900" alt="image" src="https://github.com/user-attachments/assets/be200433-1d6c-4ec4-84e0-4871ffec5dc6" />
+
+
 ---
 
 ### Diagrama de Secuencia
@@ -171,6 +174,9 @@ Describe el flujo completo del sistema:
 1. Login (password grant)
 2. Llamada a recurso protegido con token válido
 3. Token expirado → Refresh automático → Retry exitoso
+
+<img width="1652" height="1252" alt="image" src="https://github.com/user-attachments/assets/87766355-baab-4837-b57f-3d6965507837" />
+
 
 ## Opcional: Probar con Postman
 
