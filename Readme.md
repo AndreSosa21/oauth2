@@ -1,3 +1,4 @@
+# David Medina, Andrea Sosa y Samuel Rodríguez
 # OAuth2 Demo (API + Frontend)
 
 Proyecto demo que implementa un servidor OAuth2 (grant types: `password`, `refresh_token`, `client_credentials`) y un frontend local para probar flujos de autenticación, refresh automático y llamadas a endpoints protegidos.
